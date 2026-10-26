@@ -126,7 +126,7 @@ export function describeOp(op: Op, state: PlanState): string {
     case 'remove_function':
       return `Remove ${fnLabel(op.value)}`
     case 'mark_task_done':
-      return `Mark done: ${TASK_IDS.has(op.taskId) ? (TASK_TEMPLATES.find((t) => t.id === op.taskId)?.title ?? op.taskId) : op.taskId}`
+      return `Mark done: ${TASK_TEMPLATES.find((t) => t.id === op.taskId)?.title ?? op.taskId}`
     case 'delay_task':
       return `Delay "${TASK_TEMPLATES.find((t) => t.id === op.taskId)?.title ?? op.taskId}" until ${formatDate(op.notBefore)}`
   }
