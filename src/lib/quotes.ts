@@ -1,7 +1,6 @@
 import type { CategoryId, ExtractedQuote, FunctionId, Quote, QuoteCheck } from '../types'
 import { mealCount } from '../data/benchmarks'
 import { allAmounts } from './money'
-import { daysBetween, parseIso } from './dates'
 
 /** Case, whitespace and punctuation-insensitive form used to look for text inside a quote. */
 export function normalizeText(text: string): string {
@@ -140,11 +139,4 @@ export function compareQuote(
   if (total.low > allocation) verdict = 'over'
   else if (total.base < estimateLow * 0.6) verdict = 'suspiciously_low'
   return { total, verdict, overBy, gaps: quoteGaps(data, category) }
-}
-
-/** Expired or about to expire relative to a given day; null when the quote has no validity date. */
-export function validityDaysLeft(quote: Quote, today: string): number | null {
-  const until = quote.data.validTill
-  if (!until || !parseIso(until)) return null
-  return daysBetween(today, until)
 }

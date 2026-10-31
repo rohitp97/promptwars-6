@@ -5,7 +5,7 @@ import { formatINR, parseAmount } from '../lib/money'
 import { LIMITS } from '../lib/ops'
 import { defaultPriorities, newPlan, samplePlan } from '../lib/plan'
 import type { CategoryId, CityTier, FunctionId, PlanState, Priority } from '../types'
-import { Button, Card, Field, inputCls } from './ui'
+import { Button, Card, Chip, Field, inputCls } from './ui'
 
 interface Props {
   today: string
@@ -30,16 +30,9 @@ function Chips({
         {CATEGORIES.map((c) => {
           const on = value.includes(c.id)
           return (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={on}
-              disabled={!on && value.length >= max}
-              onClick={() => onToggle(c.id)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium disabled:opacity-40 ${on ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink hover:bg-brandSoft'}`}
-            >
+            <Chip key={c.id} pressed={on} disabled={!on && value.length >= max} onClick={() => onToggle(c.id)}>
               {c.short}
-            </button>
+            </Chip>
           )
         })}
       </div>

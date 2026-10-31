@@ -5,7 +5,7 @@ import { formatINR } from '../lib/money'
 import { compareQuote, quoteUnits } from '../lib/quotes'
 import type { PlanApi } from '../hooks/usePlan'
 import type { AiProvider, CategoryId, Quote, QuoteStatus } from '../types'
-import { Button, Card, ProvenanceBadge, inputCls } from './ui'
+import { Button, CategoryPicker, Card, ProvenanceBadge, inputCls } from './ui'
 
 const BASIS_LABEL = { per_plate: 'per plate', per_person: 'per person', flat: 'flat', per_day: 'per day' } as const
 const STATUS_LABEL: Record<QuoteStatus, string> = {
@@ -171,21 +171,15 @@ export function VendorsView({ api, ai }: { api: PlanApi; ai: AiProvider | null }
           inclusion appear in your text. Anything it cannot find is removed. Prices are never invented, and nothing here
           says a vendor is available.
         </p>
-        <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Vendor type">
-          {CATEGORIES.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={category === c.id}
-              onClick={() => setCategory(c.id)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium ${category === c.id ? 'border-brand bg-brand text-white' : 'border-line bg-white hover:bg-brandSoft'}`}
-            >
-              {c.short}
-              {plan.quotes.filter((q) => q.category === c.id).length > 0 &&
-                ` (${plan.quotes.filter((q) => q.category === c.id).length})`}
-            </button>
-          ))}
-        </div>
+        <CategoryPicker
+          label="Vendor type"
+          value={category}
+          onChange={setCategory}
+          badge={(id) => {
+            const n = plan.quotes.filter((q) => q.category === id).length
+            return n > 0 ? ` (${n})` : ''
+          }}
+        />
         <label className="block text-sm font-semibold" htmlFor="quote-text">
           Paste the quote
         </label>

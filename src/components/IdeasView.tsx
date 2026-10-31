@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { CATEGORIES } from '../data/benchmarks'
 import { fetchIdeas, ideaFit } from '../lib/aiTasks'
 import { formatINR } from '../lib/money'
 import type { PlanApi } from '../hooks/usePlan'
 import type { AiProvider, CategoryId, Idea, IdeaFit } from '../types'
-import { Button, Card } from './ui'
+import { Button, CategoryPicker, Card } from './ui'
 
 const FIT: Record<IdeaFit, { label: string; cls: string }> = {
   fits: { label: 'Fits your plan', cls: 'bg-quoteSoft text-quote' },
@@ -46,19 +45,7 @@ export function IdeasView({ api, ai }: { api: PlanApi; ai: AiProvider | null }) 
         The cost on each idea is the AI's rough estimate, not a quote. Whether it fits is decided by code against your
         plan.
       </p>
-      <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label="Idea category">
-        {CATEGORIES.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            aria-pressed={category === c.id}
-            onClick={() => setCategory(c.id)}
-            className={`rounded-full border px-3 py-1.5 text-sm font-medium ${category === c.id ? 'border-brand bg-brand text-white' : 'border-line bg-white hover:bg-brandSoft'}`}
-          >
-            {c.short}
-          </button>
-        ))}
-      </div>
+      <CategoryPicker label="Idea category" value={category} onChange={setCategory} />
       <div className="flex items-center gap-3">
         <Button onClick={() => void generate()} disabled={busy || !ai}>
           {busy ? 'Thinking…' : current.length > 0 ? 'New ideas' : 'Suggest ideas'}

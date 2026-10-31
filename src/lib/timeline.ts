@@ -95,8 +95,3 @@ export function summarizeTimeline(tasks: ScheduledTask[], eventDate: string, tod
     next,
   }
 }
-
-/** Tasks that cannot meet their due date even if started today. Used to explain a too-short runway. */
-export function infeasibleTasks(tasks: ScheduledTask[]): ScheduledTask[] {
-  return tasks.filter((t) => t.status !== 'done' && (t.health === 'at_risk' || t.health === 'overdue'))
-}

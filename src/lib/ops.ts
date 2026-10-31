@@ -18,6 +18,67 @@ export interface ParsedOps {
   rejected: string[]
 }
 
+type Item = Record<string, unknown>
+/** A validator returns the operation it accepts, or the reason it refuses. */
+type Validator = (item: Item, today: string) => Op | string
+
+const isId = (ids: Set<string>, v: unknown): v is string => typeof v === 'string' && ids.has(v)
+const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+
+/** Validators for the operations whose single argument is a number. */
+const numeric =
+  (check: (value: number) => Op | string): Validator =>
+  (item) =>
+    isNumber(item.value) ? check(item.value) : 'needs a number'
+
+const VALIDATORS: Record<Op['op'], Validator> = {
+  set_budget: numeric((value) =>
+    value < LIMITS.minBudget || value > LIMITS.maxBudget
+      ? `budget ${formatINR(value)} is out of range`
+      : { op: 'set_budget', value: Math.round(value) },
+  ),
+  adjust_budget_pct: numeric((value) =>
+    value <= -90 || value > 500 ? 'percentage is out of range' : { op: 'adjust_budget_pct', value },
+  ),
+  set_guests: numeric((value) =>
+    value < LIMITS.minGuests || value > LIMITS.maxGuests
+      ? `${value} guests is out of range`
+      : { op: 'set_guests', value: Math.round(value) },
+  ),
+  shift_event_days: numeric((value) =>
+    !Number.isInteger(value) || Math.abs(value) > 730
+      ? 'shift must be whole days, within 2 years'
+      : { op: 'shift_event_days', value },
+  ),
+  set_event_date: (item, today) => {
+    if (typeof item.value !== 'string' || !parseIso(item.value)) return 'not a valid date (need YYYY-MM-DD)'
+    return item.value <= today ? 'the date must be in the future' : { op: 'set_event_date', value: item.value }
+  },
+  set_city: (item) =>
+    isId(CITIES, item.value) ? { op: 'set_city', value: item.value as CityTier } : 'unknown city type',
+  set_priority: (item) => {
+    if (!isId(CATEGORY_IDS, item.category)) return 'unknown category'
+    if (!isId(PRIORITIES, item.level)) return 'unknown priority level'
+    return { op: 'set_priority', category: item.category as CategoryId, level: item.level as Priority }
+  },
+  add_function: (item) =>
+    isId(FUNCTION_IDS, item.value) ? { op: 'add_function', value: item.value as FunctionId } : 'unknown function',
+  remove_function: (item) => {
+    if (!isId(FUNCTION_IDS, item.value)) return 'unknown function'
+    if (item.value === 'wedding') return 'the wedding itself cannot be removed'
+    return { op: 'remove_function', value: item.value as FunctionId }
+  },
+  mark_task_done: (item) =>
+    isId(TASK_IDS, item.taskId) ? { op: 'mark_task_done', taskId: item.taskId } : 'unknown task',
+  delay_task: (item) => {
+    if (!isId(TASK_IDS, item.taskId)) return 'unknown task'
+    if (typeof item.notBefore !== 'string' || !parseIso(item.notBefore)) return 'not a valid date'
+    return { op: 'delay_task', taskId: item.taskId, notBefore: item.notBefore }
+  },
+}
+
+const isKnownOp = (name: string): name is Op['op'] => Object.hasOwn(VALIDATORS, name)
+
 /**
  * The model never edits the plan. It proposes operations from a closed list, and this function is
  * the only gate: unknown operations, out-of-range numbers, impossible dates and unknown ids are
@@ -33,69 +94,13 @@ export function parseOps(raw: unknown, today: string): ParsedOps {
       rejected.push('A change was malformed and was ignored.')
       continue
     }
-    const reject = (why: string) => rejected.push(`${item.op}: ${why}`)
-    switch (item.op) {
-      case 'set_budget':
-      case 'adjust_budget_pct':
-      case 'set_guests':
-      case 'shift_event_days': {
-        const value = item.value
-        if (typeof value !== 'number' || !Number.isFinite(value)) {
-          reject('needs a number')
-          break
-        }
-        if (item.op === 'set_budget') {
-          if (value < LIMITS.minBudget || value > LIMITS.maxBudget) reject(`budget ${formatINR(value)} is out of range`)
-          else ops.push({ op: 'set_budget', value: Math.round(value) })
-        } else if (item.op === 'adjust_budget_pct') {
-          if (value <= -90 || value > 500) reject('percentage is out of range')
-          else ops.push({ op: 'adjust_budget_pct', value })
-        } else if (item.op === 'set_guests') {
-          if (value < LIMITS.minGuests || value > LIMITS.maxGuests) reject(`${value} guests is out of range`)
-          else ops.push({ op: 'set_guests', value: Math.round(value) })
-        } else if (!Number.isInteger(value) || Math.abs(value) > 730) reject('shift must be whole days, within 2 years')
-        else ops.push({ op: 'shift_event_days', value })
-        break
-      }
-      case 'set_event_date': {
-        if (typeof item.value !== 'string' || !parseIso(item.value)) reject('not a valid date (need YYYY-MM-DD)')
-        else if (item.value <= today) reject('the date must be in the future')
-        else ops.push({ op: 'set_event_date', value: item.value })
-        break
-      }
-      case 'set_city': {
-        if (typeof item.value !== 'string' || !CITIES.has(item.value)) reject('unknown city type')
-        else ops.push({ op: 'set_city', value: item.value as CityTier })
-        break
-      }
-      case 'set_priority': {
-        if (typeof item.category !== 'string' || !CATEGORY_IDS.has(item.category)) reject('unknown category')
-        else if (typeof item.level !== 'string' || !PRIORITIES.has(item.level)) reject('unknown priority level')
-        else ops.push({ op: 'set_priority', category: item.category as CategoryId, level: item.level as Priority })
-        break
-      }
-      case 'add_function':
-      case 'remove_function': {
-        if (typeof item.value !== 'string' || !FUNCTION_IDS.has(item.value)) reject('unknown function')
-        else if (item.value === 'wedding' && item.op === 'remove_function')
-          reject('the wedding itself cannot be removed')
-        else ops.push({ op: item.op, value: item.value as FunctionId })
-        break
-      }
-      case 'mark_task_done': {
-        if (typeof item.taskId !== 'string' || !TASK_IDS.has(item.taskId)) reject('unknown task')
-        else ops.push({ op: 'mark_task_done', taskId: item.taskId })
-        break
-      }
-      case 'delay_task': {
-        if (typeof item.taskId !== 'string' || !TASK_IDS.has(item.taskId)) reject('unknown task')
-        else if (typeof item.notBefore !== 'string' || !parseIso(item.notBefore)) reject('not a valid date')
-        else ops.push({ op: 'delay_task', taskId: item.taskId, notBefore: item.notBefore })
-        break
-      }
-      default:
-        rejected.push(`${String(item.op)}: not an operation the planner supports`)
+    if (!isKnownOp(item.op)) {
+      rejected.push(`${item.op}: not an operation the planner supports`)
+      continue
     }
+    const result = VALIDATORS[item.op](item, today)
+    if (typeof result === 'string') rejected.push(`${item.op}: ${result}`)
+    else ops.push(result)
   }
   return { ops, rejected }
 }

@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import type { Provenance } from '../types'
+import { CATEGORIES } from '../data/benchmarks'
+import type { CategoryId, Provenance } from '../types'
 
 const PROVENANCE: Record<Provenance, { label: string; cls: string; hint: string }> = {
   estimate: {
@@ -92,6 +93,55 @@ export function Bar({ value, max, over }: { value: number; max: number; over?: b
   return (
     <div className="h-2 w-full overflow-hidden rounded-full bg-line" aria-hidden="true">
       <div className={`h-full ${over ? 'bg-danger' : 'bg-brand'}`} style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
+/** A pill-shaped on/off toggle. Used for category pickers and the setup priorities. */
+export function Chip({
+  pressed,
+  disabled,
+  onClick,
+  children,
+}: {
+  pressed: boolean
+  disabled?: boolean
+  onClick: () => void
+  children: ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      disabled={disabled}
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-sm font-medium disabled:opacity-40 ${pressed ? 'border-brand bg-brand text-white' : 'border-line bg-white text-ink hover:bg-brandSoft'}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Pick one budget category; `badge` can add a count or note after a category's name. */
+export function CategoryPicker({
+  label,
+  value,
+  onChange,
+  badge,
+}: {
+  label: string
+  value: CategoryId
+  onChange: (id: CategoryId) => void
+  badge?: (id: CategoryId) => string
+}) {
+  return (
+    <div className="mb-3 flex flex-wrap gap-2" role="group" aria-label={label}>
+      {CATEGORIES.map((c) => (
+        <Chip key={c.id} pressed={value === c.id} onClick={() => onChange(c.id)}>
+          {c.short}
+          {badge?.(c.id)}
+        </Chip>
+      ))}
     </div>
   )
 }

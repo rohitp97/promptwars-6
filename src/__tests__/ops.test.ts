@@ -138,3 +138,64 @@ describe('fetchIdeas retry', () => {
     expect(calls).toBe(1)
   })
 })
+
+describe('edits (pure plan changes)', () => {
+  it('only one quote per category can be booked', async () => {
+    const edits = await import('../lib/edits')
+    const quote = (id: string, category: 'catering' | 'venue', status: 'received' | 'booked') =>
+      ({ id, category, status }) as unknown as import('../types').Quote
+    const s = {
+      ...plan(),
+      quotes: [quote('a', 'catering', 'booked'), quote('b', 'catering', 'received'), quote('c', 'venue', 'booked')],
+    }
+    const next = edits.setQuoteStatus(s, 'b', 'booked')
+    expect(next.quotes.map((q) => q.status)).toEqual(['shortlisted', 'booked', 'booked'])
+    expect(edits.setQuoteStatus(s, 'missing', 'booked')).toBe(s)
+  })
+
+  it('own figures set and clear; tasks toggle; delays clear', async () => {
+    const edits = await import('../lib/edits')
+    const withOwn = edits.setOwnFigure(plan(), 'photo', 90000)
+    expect(withOwn.own.photo).toBe(90000)
+    expect(edits.setOwnFigure(withOwn, 'photo', null).own.photo).toBeUndefined()
+    const done = edits.toggleTask(plan(), 'venue', TODAY)
+    expect(done.tasks.venue).toEqual({ status: 'done', doneOn: TODAY })
+    expect(edits.toggleTask(done, 'venue', TODAY).tasks.venue).toEqual({ status: 'todo' })
+    const delayed = edits.delayTask(plan(), 'venue', '2026-12-01')
+    expect(delayed.tasks.venue.notBefore).toBe('2026-12-01')
+    expect(edits.delayTask(delayed, 'venue', null).tasks.venue).toEqual({ status: 'todo' })
+  })
+
+  it('priorities, checklist, scope and quote removal', async () => {
+    const edits = await import('../lib/edits')
+    expect(edits.setPriority(plan(), 'photo', 'splurge').profile.priorities.photo).toBe('splurge')
+    expect(edits.toggleChecklist(edits.toggleChecklist(plan(), 'k'), 'k').checklist.k).toBe(false)
+    const q = { id: 'a', category: 'catering', status: 'received' } as unknown as import('../types').Quote
+    const s = edits.addQuote(plan(), q)
+    expect(edits.setQuoteScope(s, 'a', 'one').quotes[0].scope).toBe('one')
+    expect(edits.removeQuote(s, 'a').quotes).toEqual([])
+  })
+})
+
+describe('storage', () => {
+  it('round-trips a plan and treats corrupt data as no plan', async () => {
+    const { loadPlan, savePlan } = await import('../lib/storage')
+    localStorage.clear()
+    expect(loadPlan()).toBeNull()
+    savePlan(plan())
+    expect(loadPlan()?.profile.guests).toBe(200)
+    localStorage.setItem('shaadi-compass.plan.v1', '{broken')
+    expect(loadPlan()).toBeNull()
+    savePlan(null)
+    expect(localStorage.getItem('shaadi-compass.plan.v1')).toBeNull()
+  })
+})
+
+describe('parseOps edge cases', () => {
+  it('rejects operation names that only exist on Object.prototype', () => {
+    const { ops, rejected } = parseOps([{ op: 'constructor' }, { op: 'toString' }, { op: '__proto__' }], TODAY)
+    expect(ops).toEqual([])
+    expect(rejected).toHaveLength(3)
+    expect(rejected[0]).toMatch(/not an operation/)
+  })
+})
