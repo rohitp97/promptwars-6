@@ -114,6 +114,8 @@ export function ideaFit(estCost: number, cap: number): IdeaFit {
   return estCost <= cap * 1.2 ? 'stretch' : 'over'
 }
 
+const IDEAS_ATTEMPTS = 2
+
 export async function fetchIdeas(
   ai: AiProvider,
   state: PlanState,
@@ -121,10 +123,18 @@ export async function fetchIdeas(
   cap: number,
   cheaperThan?: string,
 ): Promise<Idea[]> {
-  const raw = await ai.generate({
+  const request = {
     systemInstruction: IDEAS_SYSTEM,
     prompt: ideasPrompt(state, category, cap, cheaperThan),
     json: true,
-  })
-  return parseIdeas(parseJsonLoose(raw), category)
+  }
+  // The smaller models occasionally return JSON with no usable ideas. One more try almost always fixes it.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const ideas = parseIdeas(parseJsonLoose(await ai.generate(request)), category)
+      if (ideas.length > 0 || attempt === IDEAS_ATTEMPTS) return ideas
+    } catch (err) {
+      if (attempt === IDEAS_ATTEMPTS || !(err instanceof SyntaxError)) throw err
+    }
+  }
 }

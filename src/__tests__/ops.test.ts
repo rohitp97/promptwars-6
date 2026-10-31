@@ -104,3 +104,37 @@ describe('withTimeout', () => {
     await expect(withTimeout(new Promise(() => {}), 10, 'slow')).rejects.toThrow('slow')
   })
 })
+
+describe('fetchIdeas retry', () => {
+  const good = JSON.stringify({ ideas: [{ title: 'Marigold canopy', estCost: 40000 }] })
+  const provider = (replies: string[]) => {
+    let i = 0
+    return { name: 'test', generate: async () => replies[Math.min(i++, replies.length - 1)] }
+  }
+
+  it('tries once more when the first reply has no usable ideas', async () => {
+    const { fetchIdeas } = await import('../lib/aiTasks')
+    const ideas = await fetchIdeas(provider(['{"ideas":[]}', good]), plan(), 'decor', 100000)
+    expect(ideas).toHaveLength(1)
+  })
+
+  it('retries unparsable JSON once, then gives up with an empty list', async () => {
+    const { fetchIdeas } = await import('../lib/aiTasks')
+    expect(await fetchIdeas(provider(['not json', good]), plan(), 'decor', 100000)).toHaveLength(1)
+    expect(await fetchIdeas(provider(['{"ideas":[]}']), plan(), 'decor', 100000)).toEqual([])
+  })
+
+  it('does not retry a network failure', async () => {
+    const { fetchIdeas } = await import('../lib/aiTasks')
+    let calls = 0
+    const failing = {
+      name: 'test',
+      generate: async () => {
+        calls++
+        throw new Error('503')
+      },
+    }
+    await expect(fetchIdeas(failing, plan(), 'decor', 100000)).rejects.toThrow('503')
+    expect(calls).toBe(1)
+  })
+})
